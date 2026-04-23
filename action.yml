@@ -1,0 +1,115 @@
+name: "Tentacle Lint"
+description: "Lint prodyaml detection rule YAML files for schema conformance and KQL validity"
+inputs:
+  directory:
+    description: "Directory containing YAML files to lint"
+    required: false
+    default: "."
+  recursive:
+    description: "Recursively search subdirectories for YAML files"
+    required: false
+    default: "true"
+  strict:
+    description: "Treat warnings as errors"
+    required: false
+    default: "false"
+  format:
+    description: "Output format: text or json"
+    required: false
+    default: "text"
+  version:
+    description: "Version of tentacle-lint to use (defaults to latest)"
+    required: false
+    default: "latest"
+  github-token:
+    description: "GitHub token for API rate limits when resolving latest version"
+    required: false
+    default: "${{ github.token }}"
+outputs:
+  result:
+    description: "The lint output"
+    value: ${{ steps.lint.outputs.result }}
+runs:
+  using: "composite"
+  steps:
+    - name: Install tentacle-lint
+      shell: bash
+      run: |
+        VERSION="${{ inputs.version }}"
+        if [ "$VERSION" = "latest" ]; then
+          VERSION=$(curl -sL -H "Authorization: token ${{ inputs.github-token }}" \
+            https://api.github.com/repos/daten-krake/tentacle-lint/releases/latest \
+            | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
+        fi
+
+        OS=$(echo "$RUNNER_OS" | tr '[:upper:]' '[:lower:]')
+        ARCH=$(echo "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')
+
+        case "$OS" in
+          macos) OS="darwin" ;;
+          windows) OS="windows" ;;
+        esac
+
+        if [ "$ARCH" = "x64" ]; then
+          ARCH="amd64"
+        fi
+
+        ASSET="tentacle-lint_${VERSION#v}_${OS}_${ARCH}.tar.gz"
+
+        # Download tarball
+        TARBALL_URL="https://github.com/daten-krake/tentacle-lint/releases/download/${VERSION}/${ASSET}"
+        curl -sL --fail "$TARBALL_URL" -o /tmp/tentacle-lint.tar.gz
+        if [ ! -s /tmp/tentacle-lint.tar.gz ]; then
+          echo "::error::Failed to download tentacle-lint $VERSION from $TARBALL_URL"
+          exit 1
+        fi
+
+        # Download checksums and verify BEFORE extracting
+        CHECKSUM_URL="https://github.com/daten-krake/tentacle-lint/releases/download/${VERSION}/checksums.txt"
+        curl -sL --fail "$CHECKSUM_URL" -o /tmp/tentacle-lint-checksums.txt
+        if [ ! -s /tmp/tentacle-lint-checksums.txt ]; then
+          echo "::error::Failed to download checksums.txt for tentacle-lint $VERSION"
+          exit 1
+        fi
+
+        EXPECTED=$(grep "$ASSET" /tmp/tentacle-lint-checksums.txt | awk '{print $1}')
+        ACTUAL=$(sha256sum /tmp/tentacle-lint.tar.gz | awk '{print $1}')
+        if [ -z "$EXPECTED" ]; then
+          echo "::error::No checksum entry found for $ASSET in checksums.txt"
+          exit 1
+        fi
+        if [ "$EXPECTED" != "$ACTUAL" ]; then
+          echo "::error::Checksum mismatch: expected $EXPECTED, got $ACTUAL"
+          exit 1
+        fi
+        echo "Checksum verified for tentacle-lint $VERSION"
+
+        # Only extract and install AFTER checksum verification
+        tar xzf /tmp/tentacle-lint.tar.gz tentacle-lint
+        if [ ! -s tentacle-lint ] || [ ! -f tentacle-lint ]; then
+          echo "::error::Downloaded archive did not contain tentacle-lint binary"
+          exit 1
+        fi
+
+        chmod +x tentacle-lint
+        sudo mv tentacle-lint /usr/local/bin/
+
+    - name: Run tentacle-lint
+      id: lint
+      shell: bash
+      run: |
+        ARGS="--dir '${{ inputs.directory }}' --recursive=${{ inputs.recursive }} --format '${{ inputs.format }}'"
+        if [ "${{ inputs.strict }}" = "true" ]; then
+          ARGS="$ARGS --strict"
+        fi
+
+        set +e
+        OUTPUT=$(tentacle-lint $ARGS 2>&1)
+        EXIT_CODE=$?
+        set -e
+
+        echo "result<<EOF" >> "$GITHUB_OUTPUT"
+        echo "$OUTPUT" >> "$GITHUB_OUTPUT"
+        echo "EOF" >> "$GITHUB_OUTPUT"
+
+        exit $EXIT_CODE

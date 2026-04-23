@@ -18,7 +18,7 @@ const (
 )
 
 type Issue struct {
-	File     string
+	File    string
 	Field   string
 	Message string
 	Sev     Severity

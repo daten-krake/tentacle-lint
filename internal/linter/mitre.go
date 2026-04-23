@@ -8,20 +8,20 @@ import (
 )
 
 var validTactics = map[string]bool{
-	"Reconnaissance":          true,
-	"ResourceDevelopment":     true,
-	"InitialAccess":          true,
-	"Execution":              true,
-	"Persistence":            true,
-	"PrivilegeEscalation":    true,
-	"DefenseEvasion":         true,
-	"CredentialAccess":       true,
-	"Discovery":              true,
-	"LateralMovement":        true,
-	"Collection":             true,
-	"CommandAndControl":      true,
-	"Exfiltration":           true,
-	"Impact":                 true,
+	"Reconnaissance":      true,
+	"ResourceDevelopment": true,
+	"InitialAccess":       true,
+	"Execution":           true,
+	"Persistence":         true,
+	"PrivilegeEscalation": true,
+	"DefenseEvasion":      true,
+	"CredentialAccess":    true,
+	"Discovery":           true,
+	"LateralMovement":     true,
+	"Collection":          true,
+	"CommandAndControl":   true,
+	"Exfiltration":        true,
+	"Impact":              true,
 }
 
 func checkMitre(file string, a *model.Analytic) []Issue {

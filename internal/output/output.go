@@ -20,12 +20,12 @@ func Text(w io.Writer, issues []linter.Issue, strict bool) {
 }
 
 type jsonIssue struct {
-	File            string `json:"file"`
-	Field           string `json:"field"`
-	Message         string `json:"message"`
-	Severity        string `json:"severity"`
-	EffectiveSev    string `json:"effective_severity"`
-	Promoted        bool   `json:"promoted"`
+	File         string `json:"file"`
+	Field        string `json:"field"`
+	Message      string `json:"message"`
+	Severity     string `json:"severity"`
+	EffectiveSev string `json:"effective_severity"`
+	Promoted     bool   `json:"promoted"`
 }
 
 type jsonOutput struct {

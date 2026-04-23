@@ -10,7 +10,7 @@ import (
 var validSeverities = map[string]bool{
 	"Informational": true,
 	"Low":           true,
-	"Medium":         true,
+	"Medium":        true,
 	"High":          true,
 }
 

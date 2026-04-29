@@ -8,14 +8,47 @@ import (
 	"github.com/daten-krake/tentacle-lint/internal/linter"
 )
 
-func Text(w io.Writer, issues []linter.Issue, strict bool) {
+const (
+	ColorRed     = "\033[31m"
+	ColorYellow  = "\033[33m"
+	ColorCyan    = "\033[36m"
+	ColorMagenta = "\033[35m"
+	ColorBold    = "\033[1m"
+	ColorReset   = "\033[0m"
+)
+
+type Options struct {
+	Color bool
+}
+
+func (o Options) color(s string, c string) string {
+	if !o.Color {
+		return s
+	}
+	return c + s + ColorReset
+}
+
+func Text(w io.Writer, issues []linter.Issue, strict bool, opts Options) {
 	if len(issues) == 0 {
 		fmt.Fprintln(w, "No issues found.")
 		return
 	}
 	for _, issue := range issues {
 		sev := issue.EffectiveSev(strict)
-		fmt.Fprintf(w, "%s: %s [%s] %s\n", issue.File, issue.Field, sev, issue.Message)
+		sevColor := ColorYellow
+		if sev == linter.Error {
+			sevColor = ColorRed
+		}
+		field := issue.Field
+		if field == "" {
+			field = "-"
+		}
+		fmt.Fprintf(w, "%s: %s [%s] %s\n",
+			opts.color(issue.File, ColorCyan),
+			opts.color(field, ColorMagenta),
+			opts.color(string(sev), sevColor+ColorBold),
+			issue.Message,
+		)
 	}
 }
 
@@ -29,22 +62,19 @@ type jsonIssue struct {
 }
 
 type jsonOutput struct {
-	Issues []jsonIssue `json:"issues"`
-	Errors int         `json:"errors"`
-	Warns  int         `json:"warnings"`
+	Issues   []jsonIssue `json:"issues"`
+	Errors   int         `json:"errors"`
+	Warnings int         `json:"warnings"`
 }
 
-func JSON(w io.Writer, issues []linter.Issue, strict bool) {
+func JSON(w io.Writer, issues []linter.Issue, strict bool) error {
 	out := jsonOutput{
 		Issues: make([]jsonIssue, 0, len(issues)),
 	}
 
 	for _, issue := range issues {
-		promoted := strict && issue.Sev == linter.Warning
-		effectiveSev := linter.Warning
-		if promoted || issue.Sev == linter.Error {
-			effectiveSev = linter.Error
-		}
+		effectiveSev := issue.EffectiveSev(strict)
+		promoted := issue.Sev != effectiveSev
 		out.Issues = append(out.Issues, jsonIssue{
 			File:         issue.File,
 			Field:        issue.Field,
@@ -56,11 +86,11 @@ func JSON(w io.Writer, issues []linter.Issue, strict bool) {
 		if effectiveSev == linter.Error {
 			out.Errors++
 		} else {
-			out.Warns++
+			out.Warnings++
 		}
 	}
 
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	enc.Encode(out)
+	return enc.Encode(out)
 }
